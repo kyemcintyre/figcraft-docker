@@ -65,6 +65,12 @@ sha256. To add a family, add its rows (open-licensed fonts only: the app is publ
 the `Dockerfile` (the tag's commit and its `release.yml`'s `craft-fonts-ref`). The compile takes
 20-40 minutes on GitHub's runners; the server binary is still the upstream release's.
 
+FigCraft 0.16.0's web build only embeds a fixed list of fonts and ignores `FIGCRAFT_WEB_FONTS`
+(newer source supports it), so [`scripts/patch-web-fonts.sh`](scripts/patch-web-fonts.sh) changes
+that one condition in `crates/text/build.rs` when the source doesn't read the variable itself. It
+fails if the line has changed, and the build checks each family's name is in the built `.wasm`,
+so a web app without the fonts is never published.
+
 `FIGCRAFT_SERVER_URL` in the Release workflow (`wss://figcraft.kyemcintyre.net/`) is written into
 `index.html` as the page's own server, so join codes and online sharing use it. Clients open a file
 in the browser, without installing FigCraft, at:

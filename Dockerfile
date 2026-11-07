@@ -26,7 +26,7 @@ ARG FIGCRAFT_VERSION=0.16.0
 # pins (craft-fonts-ref in its .github/workflows/release.yml). Update all three together.
 ARG FIGCRAFT_COMMIT=f45b261687880e56d1bad11ec82b45131e57ef8b
 ARG CRAFT_FONTS_REF=37827adc41fd165f9a9234ac40f94dbad353aa69
-ARG PACKAGE_REVISION=3
+ARG PACKAGE_REVISION=4
 # The google/fonts commit web-fonts.txt's files and checksums come from.
 ARG GOOGLE_FONTS_REF=86aced91de05cd4f96a06838124cca45be337b2b
 # Trunk as upstream's release pins it (craft-common-actions install-trunk), x86_64 Linux build.
@@ -68,16 +68,25 @@ RUN git clone -q --depth 1 --branch "v${FIGCRAFT_VERSION}" https://github.com/st
     git init -q craft-fonts; \
     git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts "$CRAFT_FONTS_REF"; \
     git -C craft-fonts checkout -q FETCH_HEAD
-COPY web-fonts.txt scripts/add-fonts.sh /build/
-RUN /build/add-fonts.sh /build/web-fonts.txt /src/craft-fonts "$GOOGLE_FONTS_REF" > /build/web-fonts.env; \
+COPY web-fonts.txt scripts/add-fonts.sh scripts/patch-web-fonts.sh /build/
+# 0.16.0's web build ignores FIGCRAFT_WEB_FONTS (only newer source reads it): patch it in.
+RUN /build/patch-web-fonts.sh /src/figcraft; \
+    /build/add-fonts.sh /build/web-fonts.txt /src/craft-fonts "$GOOGLE_FONTS_REF" > /build/web-fonts.env; \
     echo "embedding: $(cat /build/web-fonts.env)"
-# A family the build doesn't embed is only a cargo warning upstream: fail on it here. The
-# build output (several GB in target/) is removed in the same step, out of the build cache.
+# A family the build doesn't embed is only a cargo warning upstream, so fail on that, and check
+# each family's name is in the built .wasm (its font catalog entry), as "Noto Sans Georgian" is
+# in every release. The build output (several GB in target/) is removed in the same step.
 RUN cd figcraft/apps/figcraft-web; \
     CRAFT_FONTS_DIR=/src/craft-fonts CRAFT_FONTS_REQUIRED=1 FIGCRAFT_WEB_FONTS="$(cat /build/web-fonts.env)" \
       trunk build --release 2>&1 | tee /build/trunk.log; \
     if grep -q "isn't embedded" /build/trunk.log; then grep "isn't embedded" /build/trunk.log >&2; exit 1; fi; \
-    ls -l /src/figcraft/dist/web/*.wasm; \
+    wasm=$(ls /src/figcraft/dist/web/*_bg.wasm); \
+    ls -l "$wasm"; \
+    IFS=, read -ra families < /build/web-fonts.env; \
+    for family in "${families[@]}"; do \
+      if grep -a -q -F "$family" "$wasm"; then echo "embedded: $family"; \
+      else echo "not in the built web app: $family" >&2; exit 1; fi; \
+    done; \
     rm -rf /src/figcraft/target
 RUN set -eu; \
     mkdir -p /out/web; \
