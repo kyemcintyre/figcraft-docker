@@ -1,0 +1,33 @@
+figcraft-docker
+Copyright (c) 2026 Kye McIntyre
+Licensed under the MIT License or the Apache License, Version 2.0, at your option
+(LICENSE-MIT, LICENSE-APACHE). This covers the files in this repository: the Dockerfile,
+scripts, configuration and documentation.
+
+The container image built from this repository bundles third-party software and fonts, each
+under its own licence. Their licence files ship inside the image at the paths given.
+
+FigCraft (figcraft-server and the FigCraft web app)
+  https://github.com/storytold/figcraft
+  Copyright (c) 2026 ArtCraft Team and the FigCraft contributors
+  MIT OR Apache-2.0
+  In the image: /usr/share/doc/figcraft-server/ (LICENSE-MIT, LICENSE-APACHE, NOTICE),
+  /srv/web/ (LICENSE-MIT, LICENSE-APACHE, NOTICE)
+  The web app is compiled from FigCraft's source at the release tag, with one line of
+  crates/text/build.rs changed at build time (scripts/patch-web-fonts.sh) so it embeds the
+  fonts in web-fonts.txt.
+
+static-web-server
+  https://github.com/static-web-server/static-web-server
+  MIT OR Apache-2.0
+  In the image: /usr/share/doc/static-web-server/
+
+Fonts embedded in the web app
+  From craft-fonts (https://github.com/storytold/craft-fonts), as in FigCraft's release, and
+  from Google Fonts (https://github.com/google/fonts) as listed in web-fonts.txt:
+  Bodoni Moda, Jost, Parisienne. All are under the SIL Open Font License 1.1.
+  In the image: /srv/web/OFL-<family>.txt
+
+Base image
+  gcr.io/distroless/cc-debian13 (https://github.com/GoogleContainerTools/distroless),
+  Debian packages under their own licences (/usr/share/doc in the image).
