@@ -18,6 +18,12 @@
 #   hashed assets cached for a year and index.html revalidated, /health for probes:
 #     --entrypoint /usr/local/bin/static-web-server  (reads /etc/static-web-server/sws.toml)
 #   Open https://<host>/#join=<share link or join code> to join a file in the browser.
+#
+#   figcraft-admin on 8090: the admin page at /admin (list files and links, make and revoke
+#   links, remove files), behind a password it makes and prints in its log on first start
+#   (kept hashed in /data/admin; change it on the page, or run figcraft-admin reset-password):
+#     --entrypoint /usr/local/bin/figcraft-admin  (env: FIGCRAFT_WEB_URL, see admin/main.go)
+#   It needs the server's data volume and server.toml, and runs figcraft-server's commands.
 #   FIGCRAFT_SERVER_URL (a ws:// or wss:// address, no query) is written into index.html as the
 #   page's own server, for join codes and online sharing; empty leaves the page's default.
 
@@ -26,7 +32,7 @@ ARG FIGCRAFT_VERSION=0.16.0
 # pins (craft-fonts-ref in its .github/workflows/release.yml). Update all three together.
 ARG FIGCRAFT_COMMIT=f45b261687880e56d1bad11ec82b45131e57ef8b
 ARG CRAFT_FONTS_REF=37827adc41fd165f9a9234ac40f94dbad353aa69
-ARG PACKAGE_REVISION=4
+ARG PACKAGE_REVISION=5
 # The google/fonts commit web-fonts.txt's files and checksums come from.
 ARG GOOGLE_FONTS_REF=86aced91de05cd4f96a06838124cca45be337b2b
 # Trunk as upstream's release pins it (craft-common-actions install-trunk), x86_64 Linux build.
@@ -108,6 +114,15 @@ RUN set -eu; \
     find /out/web -type f \( -name '*.wasm' -o -name '*.js' -o -name '*.html' \) \
       -exec brotli -q 11 -k {} \; -exec gzip -9 -k {} \;
 
+# figcraft-admin (admin/): the password-protected admin page at /admin, which lists published
+# files and makes, lists and revokes their links, or removes them, through figcraft-server's own
+# commands. Standard library only; cross-compiled for the target architecture.
+FROM --platform=$BUILDPLATFORM golang:1.24-bookworm AS admin
+ARG TARGETARCH
+WORKDIR /src
+COPY admin/ ./
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/figcraft-admin .
+
 # The two binaries, for the target architecture.
 FROM debian:trixie-slim AS fetch
 ARG FIGCRAFT_VERSION
@@ -155,11 +170,12 @@ COPY --from=fetch /out/usr /usr
 COPY --from=fetch /out/etc/figcraft-server /etc/figcraft-server
 COPY --from=fetch --chown=nonroot:nonroot /out/data /data
 COPY --from=web /out/web /srv/web
+COPY --from=admin /out/figcraft-admin /usr/local/bin/figcraft-admin
 COPY sws.toml /etc/static-web-server/sws.toml
 # static-web-server reads its settings from here (figcraft-server ignores it).
 ENV SERVER_CONFIG_FILE=/etc/static-web-server/sws.toml
 USER nonroot:nonroot
 VOLUME /data
-EXPOSE 47900 8080
+EXPOSE 47900 8080 8090
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/figcraft-server", "--config", "/etc/figcraft-server/server.toml"]

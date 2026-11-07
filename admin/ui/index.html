@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>FigCraft admin</title>
+  <link rel="stylesheet" href="admin.css">
+  <script src="admin.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>FigCraft admin</h1>
+    <nav id="nav" hidden>
+      <button type="button" id="show-password" class="link">Change password</button>
+      <button type="button" id="logout" class="link">Sign out</button>
+    </nav>
+  </header>
+
+  <main>
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <section id="login" hidden>
+      <h2>Sign in</h2>
+      <form id="login-form">
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="hint">On first start the password is printed once in the admin container's log.
+        Lost it? Run <code>figcraft-admin reset-password</code> in that container.</p>
+    </section>
+
+    <section id="password" hidden>
+      <h2>Change password</h2>
+      <form id="password-form">
+        <label for="pw-current">Current password</label>
+        <input id="pw-current" type="password" autocomplete="current-password" required>
+        <label for="pw-new">New password (at least 12 characters)</label>
+        <input id="pw-new" type="password" autocomplete="new-password" minlength="12" required>
+        <label for="pw-confirm">New password again</label>
+        <input id="pw-confirm" type="password" autocomplete="new-password" minlength="12" required>
+        <div class="row">
+          <button type="submit">Change password</button>
+          <button type="button" id="pw-cancel" class="secondary">Cancel</button>
+        </div>
+      </form>
+      <p class="hint">Changing it signs out every other session.</p>
+    </section>
+
+    <section id="files" hidden>
+      <div class="row spread">
+        <h2>Published files</h2>
+        <button type="button" id="refresh" class="secondary">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>ID</th><th class="num">People</th><th>Size</th><th>Created</th><th>Idle</th><th></th></tr>
+          </thead>
+          <tbody id="files-body"></tbody>
+        </table>
+      </div>
+      <p id="files-empty" class="hint" hidden>No files published yet.</p>
+    </section>
+
+    <section id="links" hidden>
+      <div class="row spread">
+        <h2>Links for <span id="links-file"></span></h2>
+        <button type="button" id="links-close" class="secondary">Close</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Link</th><th>Access</th><th>Created</th><th>Label</th><th></th></tr>
+          </thead>
+          <tbody id="links-body"></tbody>
+        </table>
+      </div>
+      <p id="links-empty" class="hint" hidden>No links: nobody can open this file until you make one.</p>
+
+      <h3>New link</h3>
+      <form id="create-form" class="row wrap">
+        <label for="create-access">Access</label>
+        <select id="create-access">
+          <option value="view">View only</option>
+          <option value="comment">Comment</option>
+          <option value="edit">Edit</option>
+        </select>
+        <label for="create-label">Label</label>
+        <input id="create-label" maxlength="60" placeholder="e.g. client name">
+        <button type="submit">Make link</button>
+      </form>
+
+      <div id="created" class="created" hidden>
+        <p><strong>Copy these now:</strong> the server keeps only a hash, so they can't be shown again.</p>
+        <label for="created-browser">Open in a browser (no install)</label>
+        <div class="row"><input id="created-browser" readonly><button type="button" data-copy="created-browser">Copy</button></div>
+        <label for="created-link">Open in the FigCraft app</label>
+        <div class="row"><input id="created-link" readonly><button type="button" data-copy="created-link">Copy</button></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

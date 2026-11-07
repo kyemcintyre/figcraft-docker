@@ -20,6 +20,7 @@ on:
       - sws.toml
       - web-fonts.txt
       - scripts/**
+      - admin/**
   workflow_dispatch:
 
 concurrency:
