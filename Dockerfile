@@ -32,7 +32,7 @@ ARG FIGCRAFT_VERSION=0.16.0
 # pins (craft-fonts-ref in its .github/workflows/release.yml). Update all three together.
 ARG FIGCRAFT_COMMIT=f45b261687880e56d1bad11ec82b45131e57ef8b
 ARG CRAFT_FONTS_REF=37827adc41fd165f9a9234ac40f94dbad353aa69
-ARG PACKAGE_REVISION=5
+ARG PACKAGE_REVISION=6
 # The google/fonts commit web-fonts.txt's files and checksums come from.
 ARG GOOGLE_FONTS_REF=86aced91de05cd4f96a06838124cca45be337b2b
 # Trunk as upstream's release pins it (craft-common-actions install-trunk), x86_64 Linux build.
@@ -74,9 +74,11 @@ RUN git clone -q --depth 1 --branch "v${FIGCRAFT_VERSION}" https://github.com/st
     git init -q craft-fonts; \
     git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts "$CRAFT_FONTS_REF"; \
     git -C craft-fonts checkout -q FETCH_HEAD
-COPY web-fonts.txt scripts/add-fonts.sh scripts/patch-web-fonts.sh /build/
-# 0.16.0's web build ignores FIGCRAFT_WEB_FONTS (only newer source reads it): patch it in.
+COPY web-fonts.txt scripts/add-fonts.sh scripts/patch-web-fonts.sh scripts/patch-web-comments.sh /build/
+# 0.16.0's web build ignores FIGCRAFT_WEB_FONTS (only newer source reads it): patch it in. And it
+# crashes when a comment is posted in the browser (fixed upstream after the release, #1766).
 RUN /build/patch-web-fonts.sh /src/figcraft; \
+    /build/patch-web-comments.sh /src/figcraft; \
     /build/add-fonts.sh /build/web-fonts.txt /src/craft-fonts "$GOOGLE_FONTS_REF" > /build/web-fonts.env; \
     echo "embedding: $(cat /build/web-fonts.env)"
 # A family the build doesn't embed is only a cargo warning upstream, so fail on that, and check
