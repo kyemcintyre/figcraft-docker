@@ -25,12 +25,13 @@ deployed. Running it by hand from the Actions tab rebuilds only the floating tag
 
 ## What's in it
 
-One image, two programs. Run each in its own container (in Kubernetes, two containers in one pod):
+One image, three programs. Run each in its own container (in Kubernetes, containers in one pod):
 
 | Program | Port | Start | Reads |
 |---|---|---|---|
 | `figcraft-server` (default entrypoint) | 47900 | as is | `/etc/figcraft-server/server.toml`, data in `/data` |
 | `static-web-server` (the web app in `/srv/web`) | 8080 | entrypoint `/usr/local/bin/static-web-server` | `/etc/static-web-server/sws.toml` |
+| `figcraft-admin` (the admin page at `/admin`) | 8090 | entrypoint `/usr/local/bin/figcraft-admin` | `server.toml`, the data volume |
 
 Both run as `nonroot` (uid 65532). The web app's `.wasm`/`.js`/`.html` ship with Brotli and gzip
 copies; hashed assets are cached for a year and `index.html` is revalidated. `GET /health` on 8080
@@ -85,6 +86,26 @@ WebGL2 or WebGPU (Safari 16.4 or later); the first load downloads about 5 MiB.
 
 Serve the web app and the server under one hostname by sending WebSocket upgrades (and `/healthz`)
 to 47900 and everything else to 8080.
+
+### The admin page
+
+`figcraft-admin` (Go, standard library only, source in [`admin/`](admin/)) serves `/admin`:
+list published files, list their links, make a new view, comment or edit link (shown once, with
+the browser `#join=` link), revoke a link, or remove a file. It runs figcraft-server's own
+management commands in the same pod, so the server key never leaves it.
+
+- **Password:** made at random on first start and **printed once in the admin container's log**
+  (`FIGCRAFT ADMIN PASSWORD (shown once…)`), kept only as a PBKDF2-SHA256 hash in
+  `/data/admin/password.json`. Change it on the page (12+ characters; signs out other sessions).
+  Lost it: `kubectl -n figcraft exec deploy/figcraft -c admin -- /usr/local/bin/figcraft-admin
+  reset-password` prints a new one, which works at once.
+- **Protection:** HttpOnly, Secure, SameSite=Strict session cookie on `/admin` (12 hours, 2 idle);
+  every change needs an `X-Figcraft-Admin` header and a same-site `Origin`; 5 wrong passwords lock
+  an address for 15 minutes, 20 from anywhere lock everyone; strict CSP and no framing.
+- **Settings** (environment): `FIGCRAFT_WEB_URL` (for browser links), `ADMIN_LISTEN`
+  (`0.0.0.0:8090`), `ADMIN_DATA` (`/data/admin`), `FIGCRAFT_SERVER`, `FIGCRAFT_CONFIG`.
+
+Tests: `cd admin && go test ./...`.
 
 ## Licence
 
