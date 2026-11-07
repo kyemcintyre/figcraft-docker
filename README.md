@@ -85,3 +85,10 @@ WebGL2 or WebGPU (Safari 16.4 or later); the first load downloads about 5 MiB.
 
 Serve the web app and the server under one hostname by sending WebSocket upgrades (and `/healthz`)
 to 47900 and everything else to 8080.
+
+## Licence
+
+The files in this repository are licensed under either of [Apache License 2.0](LICENSE-APACHE) or
+[MIT](LICENSE-MIT), at your option, like FigCraft itself. The image bundles FigCraft,
+static-web-server and open-licensed fonts under their own licences: see [NOTICE](NOTICE).
+Security reports: [SECURITY.md](SECURITY.md). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).

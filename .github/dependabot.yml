@@ -1,0 +1,11 @@
+# Keeps the release workflow's actions up to date. Dependabot opens pull requests; they still
+# need the code owner's review, and changing the workflow alone doesn't publish an image.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
