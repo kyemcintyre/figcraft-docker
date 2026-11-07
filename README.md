@@ -1,38 +1,72 @@
 # figcraft-docker
 
-Container image for [figcraft-server](https://github.com/storytold/figcraft/blob/main/docs/server.md),
-built from the upstream release binaries (checked against the release's `SHA256SUMS.txt`) on a
+Container image for [FigCraft](https://github.com/storytold/figcraft)'s collaboration server
+([figcraft-server](https://github.com/storytold/figcraft/blob/main/docs/server.md)) and its browser
+app, built from the upstream release files (each checked against its release's checksums) on a
 distroless base. Images are published for `linux/amd64` and `linux/arm64`:
 
 ```
-ghcr.io/kyemcintyre/figcraft-server:<version>   # e.g. 0.16.0
+ghcr.io/kyemcintyre/figcraft-server:<version>-<revision>   # e.g. 0.16.0-2: pin this; never re-pushed
+ghcr.io/kyemcintyre/figcraft-server:<version>              # floating: newest packaging of that version
 ghcr.io/kyemcintyre/figcraft-server:<major.minor>
 ghcr.io/kyemcintyre/figcraft-server:latest
 ghcr.io/kyemcintyre/figcraft-server:sha-<commit>
 ```
 
-## Upgrading FigCraft
+## Upgrading
 
-Change `ARG FIGCRAFT_VERSION=` in the `Dockerfile` to the new upstream release and push to `main`.
-The Release workflow builds and pushes the image tagged with that version. To rebuild the current
-version (for base image fixes), run the workflow by hand from the Actions tab.
+- **New FigCraft release:** set `ARG FIGCRAFT_VERSION=` in the `Dockerfile` to it and
+  `ARG PACKAGE_REVISION=1`, then push to `main`.
+- **Packaging change only** (this repo's files): bump `ARG PACKAGE_REVISION=` and push.
 
-## Running
+The Release workflow builds and pushes the image. It refuses to overwrite an existing
+`<version>-<revision>` tag, so a push that forgets the bump fails rather than changing what's
+deployed. Running it by hand from the Actions tab rebuilds only the floating tags.
 
-The image runs as `nonroot` (uid 65532), keeps its files in `/data`, listens on `47900` and reads
-`/etc/figcraft-server/server.toml`. Mount your own `server.toml` to set `public_url`,
-`trusted_proxy` and limits:
+## What's in it
+
+One image, two programs. Run each in its own container (in Kubernetes, two containers in one pod):
+
+| Program | Port | Start | Reads |
+|---|---|---|---|
+| `figcraft-server` (default entrypoint) | 47900 | as is | `/etc/figcraft-server/server.toml`, data in `/data` |
+| `static-web-server` (the web app in `/srv/web`) | 8080 | entrypoint `/usr/local/bin/static-web-server` | `/etc/static-web-server/sws.toml` |
+
+Both run as `nonroot` (uid 65532). The web app's `.wasm`/`.js`/`.html` ship with Brotli and gzip
+copies; hashed assets are cached for a year and `index.html` is revalidated. `GET /health` on 8080
+and `GET /healthz` on 47900 answer for probes.
+
+### The server
+
+Mount your own `server.toml` to set `public_url`, `trusted_proxy` and limits:
 
 ```toml
 listen = "0.0.0.0:47900"
-data = "/data"
+data = "/data/server"   # a subdirectory: the server chmods its data directory to 0700
 public_url = "wss://figcraft.example.com/"
 ```
 
-Run one replica per data directory (a second server refuses to start on it). `GET /healthz`
-answers `200 ok` for probes. Management commands go through the same entrypoint:
+Run one replica per data directory (a second server refuses to start on it). Management commands
+go through the same entrypoint:
 
 ```sh
-kubectl -n figcraft exec deploy/figcraft-server -- \
+kubectl -n figcraft exec deploy/figcraft -c server -- \
   /usr/local/bin/figcraft-server --config /etc/figcraft-server/server.toml key
 ```
+
+### The web app
+
+`FIGCRAFT_SERVER_URL` in the Release workflow (`wss://figcraft.kyemcintyre.net/`) is written into
+`index.html` as the page's own server, so join codes and online sharing use it. Clients open a file
+in the browser, without installing FigCraft, at:
+
+```
+https://figcraft.kyemcintyre.net/#join=<share link or join code>
+```
+
+Paste the view (or edit) link from the app's Share popover after `#join=`. Everything after `#`
+stays in the browser and never reaches the web server's logs. Clients need a current browser with
+WebGL2 or WebGPU (Safari 16.4 or later); the first load downloads about 5 MiB.
+
+Serve the web app and the server under one hostname by sending WebSocket upgrades (and `/healthz`)
+to 47900 and everything else to 8080.

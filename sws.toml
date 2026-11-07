@@ -1,0 +1,40 @@
+# static-web-server settings for the FigCraft web app (/srv/web).
+# https://static-web-server.net/configuration/config-file/
+
+[general]
+host = "0.0.0.0"
+port = 8080
+root = "/srv/web"
+log-level = "warn"
+
+# The build ships .br and .gz copies of the app (about 18 MiB -> 5-7 MiB);
+# serve those, and compress anything else on the fly.
+compression-static = true
+compression = true
+
+# Cache headers are set per file below instead of by extension.
+cache-control-headers = false
+
+directory-listing = false
+
+# GET/HEAD /health answers 200, for probes.
+health = true
+
+[advanced]
+
+# Asset names carry a content hash: cache them for good.
+[[advanced.headers]]
+source = "**/*.{js,wasm}"
+[advanced.headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# The page names the current hashes: always revalidate it.
+[[advanced.headers]]
+source = "/"
+[advanced.headers.headers]
+Cache-Control = "no-cache"
+
+[[advanced.headers]]
+source = "/index.html"
+[advanced.headers.headers]
+Cache-Control = "no-cache"

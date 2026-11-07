@@ -1,10 +1,13 @@
 name: Release
 
-# Builds the figcraft-server image for amd64 and arm64 and pushes it to GHCR.
-# The image version is the upstream FigCraft version pinned in the Dockerfile
-# (ARG FIGCRAFT_VERSION), so upgrading is a one-line commit to main. Pushes that
-# don't touch the image (docs, README) are skipped. Run it by hand from the
-# Actions tab to rebuild the current version, e.g. to pick up base image fixes.
+# Builds the figcraft-server image (server + web app) for amd64 and arm64 and
+# pushes it to GHCR. The version comes from the Dockerfile: ARG FIGCRAFT_VERSION
+# (upstream FigCraft) and ARG PACKAGE_REVISION (this packaging). The image is
+# tagged <version>-<revision>, which is never re-pushed (deploy pins it), plus
+# the floating <version>, <major.minor> and latest. Pushes that don't touch the
+# image (docs, README) are skipped. Run it by hand from the Actions tab to
+# rebuild the floating tags, e.g. for base image fixes; bump PACKAGE_REVISION
+# for a new immutable tag.
 on:
   push:
     branches: [main]
@@ -18,6 +21,9 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/figcraft-server
+  # Written into the web app's index.html as its own server (join codes,
+  # online sharing). A ws:// or wss:// address without a query.
+  FIGCRAFT_SERVER_URL: wss://figcraft.kyemcintyre.net/
 
 jobs:
   image:
@@ -32,11 +38,17 @@ jobs:
         id: version
         run: |
           version=$(sed -n 's/^ARG FIGCRAFT_VERSION=\(.*\)$/\1/p' Dockerfile | head -1)
-          if [ -z "$version" ]; then
-            echo "::error::No ARG FIGCRAFT_VERSION=<version> line in the Dockerfile"; exit 1
+          revision=$(sed -n 's/^ARG PACKAGE_REVISION=\(.*\)$/\1/p' Dockerfile | head -1)
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::ARG FIGCRAFT_VERSION in the Dockerfile isn't x.y.z: '$version'"; exit 1
+          fi
+          if ! printf '%s' "$revision" | grep -Eq '^[0-9]+$'; then
+            echo "::error::ARG PACKAGE_REVISION in the Dockerfile isn't a number: '$revision'"; exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Packaging FigCraft v$version" >> "$GITHUB_STEP_SUMMARY"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
+          echo "Packaging FigCraft v$version, revision $revision → \`$version-$revision\`" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-qemu-action@v4
 
@@ -48,13 +60,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # <version>-<revision> is what the chart pins, so it's never overwritten:
+      # a push that would re-push it fails here instead. Bump PACKAGE_REVISION.
+      - name: Refuse to re-push a pinned tag
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}-${{ steps.version.outputs.revision }}
+        run: |
+          if docker buildx imagetools inspect "$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG already exists. Bump PACKAGE_REVISION (or FIGCRAFT_VERSION) in the Dockerfile."
+            exit 1
+          fi
+
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.version }}-${{ steps.version.outputs.revision }},enable=${{ github.event_name == 'push' }}
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.minor }}
             type=sha,prefix=sha-
             type=raw,value=latest
 
@@ -64,7 +89,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: FIGCRAFT_VERSION=${{ steps.version.outputs.version }}
+          build-args: |
+            FIGCRAFT_VERSION=${{ steps.version.outputs.version }}
+            PACKAGE_REVISION=${{ steps.version.outputs.revision }}
+            FIGCRAFT_SERVER_URL=${{ env.FIGCRAFT_SERVER_URL }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
