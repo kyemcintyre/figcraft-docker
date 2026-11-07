@@ -1,0 +1,24 @@
+# Extra fonts compiled into the FigCraft web app, on top of what upstream ships (Inter, Noto Sans
+# Georgian, Archivo SemiBold). The browser app can't download fonts, so text in any other family
+# falls back to Inter for people viewing in the browser.
+#
+# Each row is one file from Google's repository (https://github.com/google/fonts) at
+# GOOGLE_FONTS_REF in the Dockerfile, under ofl/ (open-licensed fonts only: the web app is
+# public, so anyone can take the fonts out of it). Fields are separated by " | ":
+#
+#   family | style | path under ofl/ | sha256
+#
+# style is Regular, Bold, Italic… for a static face, "Variable" / "Italic Variable" for a variable
+# font, or "Licence" for the family's OFL.txt (one per family, required). The family must match
+# the name the design files use. Changing this file needs a PACKAGE_REVISION bump in the Dockerfile.
+
+Bodoni Moda | Variable | bodonimoda/BodoniModa[opsz,wght].ttf | 550f5e34ee0a828d7941b1fe9bc58b34e5260d3f33a61532e6d0a0114e79a5cf
+Bodoni Moda | Italic Variable | bodonimoda/BodoniModa-Italic[opsz,wght].ttf | dfff1619f8f6871c6372f8855b67211f9a73b4e93d45aca868cd8f46a48622de
+Bodoni Moda | Licence | bodonimoda/OFL.txt | 931dfe2e0cd3c9443295f5c1d754b8a8403bf060df50c1d5900267ade83d0046
+
+Jost | Variable | jost/Jost[wght].ttf | 6343b70971000b04c5d401c96ae08ce371086135e999d5e1e1413039c0213076
+Jost | Italic Variable | jost/Jost-Italic[wght].ttf | 15a6f7e3e11f9e8e338a583a6fe03e8f6b1d9ce877efa3fe579282b6c1cb15fe
+Jost | Licence | jost/OFL.txt | 1af3438a4d5f0ed2bdbc5751a5a67ebf6d537334161184b7fbb68503ef0ea0c5
+
+Parisienne | Regular | parisienne/Parisienne-Regular.ttf | bc9ee17f022e20bc700797e5f557d14bfa43af0c98d9e6c9c5c1ca4ec7aacd57
+Parisienne | Licence | parisienne/OFL.txt | 1dd84b611f4bed7f9ff9089e76a96337b187e6f283a4ab33bcb987f844f2c4db

@@ -56,6 +56,15 @@ kubectl -n figcraft exec deploy/figcraft -c server -- \
 
 ### The web app
 
+The browser app can't download fonts: they're compiled into it. So the image compiles it from
+FigCraft's source at the release tag (the same way upstream's release does) with the extra
+families in [`web-fonts.txt`](web-fonts.txt) (Bodoni Moda, Jost, Parisienne), taken from
+[google/fonts](https://github.com/google/fonts) at a pinned commit and checked against their
+sha256. To add a family, add its rows (open-licensed fonts only: the app is public) and bump
+`PACKAGE_REVISION`. A FigCraft upgrade also updates `FIGCRAFT_COMMIT` and `CRAFT_FONTS_REF` in
+the `Dockerfile` (the tag's commit and its `release.yml`'s `craft-fonts-ref`). The compile takes
+20-40 minutes on GitHub's runners; the server binary is still the upstream release's.
+
 `FIGCRAFT_SERVER_URL` in the Release workflow (`wss://figcraft.kyemcintyre.net/`) is written into
 `index.html` as the page's own server, so join codes and online sharing use it. Clients open a file
 in the browser, without installing FigCraft, at:

@@ -28,6 +28,8 @@ env:
 jobs:
   image:
     runs-on: ubuntu-latest
+    # The web app compiles from source (20-40 minutes); this only stops a hung build.
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write

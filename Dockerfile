@@ -1,5 +1,6 @@
-# figcraft-server and the FigCraft web app (https://github.com/storytold/figcraft) packaged from
-# the upstream release files, each checked against its release's checksums. Bump
+# figcraft-server and the FigCraft web app (https://github.com/storytold/figcraft). The server is
+# the upstream release binary, checked against the release's checksums; the web app is compiled
+# from the release tag with the extra fonts in web-fonts.txt (see the web stage). Bump
 # FIGCRAFT_VERSION to upgrade, and PACKAGE_REVISION for a change to this packaging alone; the
 # release workflow tags the image <FIGCRAFT_VERSION>-<PACKAGE_REVISION> (never re-pushed), plus
 # the floating <FIGCRAFT_VERSION>, <major.minor> and latest.
@@ -21,28 +22,69 @@
 #   page's own server, for join codes and online sharing; empty leaves the page's default.
 
 ARG FIGCRAFT_VERSION=0.16.0
-ARG PACKAGE_REVISION=2
+# The commit the v<FIGCRAFT_VERSION> tag points at, and the craft-fonts commit that release
+# pins (craft-fonts-ref in its .github/workflows/release.yml). Update all three together.
+ARG FIGCRAFT_COMMIT=f45b261687880e56d1bad11ec82b45131e57ef8b
+ARG CRAFT_FONTS_REF=37827adc41fd165f9a9234ac40f94dbad353aa69
+ARG PACKAGE_REVISION=3
+# The google/fonts commit web-fonts.txt's files and checksums come from.
+ARG GOOGLE_FONTS_REF=86aced91de05cd4f96a06838124cca45be337b2b
+# Trunk as upstream's release pins it (craft-common-actions install-trunk), x86_64 Linux build.
+ARG TRUNK_VERSION=0.21.14
+ARG TRUNK_SHA256=f2b4680cd239693a646a2795e4633c625328d7b2a044fbe749fa3a2fe9e7036b
 ARG SWS_VERSION=2.44.1
 ARG FIGCRAFT_SERVER_URL=""
 
-# The web app is the same on every architecture: fetch, patch and compress it once, natively.
-FROM --platform=$BUILDPLATFORM debian:trixie-slim AS web
+# The web app, compiled from FigCraft's source at the release tag with the extra fonts in
+# web-fonts.txt (the browser app can't download fonts; they're compiled into the .wasm). It's the
+# same on every architecture, so it's built once, natively, on an x86_64 build machine. Mirrors
+# upstream's release web job (craft-common-actions release.yml): Rust stable, wasm32 target,
+# Trunk, the web-release profile (index.html), craft-fonts at the release's craft-fonts-ref.
+FROM --platform=$BUILDPLATFORM rust:1-trixie AS web
 ARG FIGCRAFT_VERSION
+ARG FIGCRAFT_COMMIT
+ARG CRAFT_FONTS_REF
+ARG GOOGLE_FONTS_REF
+ARG TRUNK_VERSION
+ARG TRUNK_SHA256
 ARG FIGCRAFT_SERVER_URL
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl unzip brotli \
+ && apt-get install -y --no-install-recommends ca-certificates curl git brotli \
  && rm -rf /var/lib/apt/lists/*
-WORKDIR /dl
+RUN [ "$(uname -m)" = x86_64 ] || { echo "the web app builds on an x86_64 build machine (Trunk is pinned for it)" >&2; exit 1; }; \
+    rustup target add wasm32-unknown-unknown; \
+    curl --proto '=https' -fsSL -o /tmp/trunk.tar.gz \
+      "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz"; \
+    echo "$TRUNK_SHA256  /tmp/trunk.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/trunk.tar.gz -C /usr/local/bin trunk; \
+    rm /tmp/trunk.tar.gz; \
+    trunk --version
+WORKDIR /src
+# The tag must still be the commit it was when this was pinned (tags can move).
+RUN git clone -q --depth 1 --branch "v${FIGCRAFT_VERSION}" https://github.com/storytold/figcraft figcraft; \
+    [ "$(git -C figcraft rev-parse HEAD)" = "$FIGCRAFT_COMMIT" ] \
+      || { echo "v${FIGCRAFT_VERSION} is $(git -C figcraft rev-parse HEAD), not FIGCRAFT_COMMIT $FIGCRAFT_COMMIT" >&2; exit 1; }; \
+    git init -q craft-fonts; \
+    git -C craft-fonts fetch -q --depth 1 https://github.com/storytold/craft-fonts "$CRAFT_FONTS_REF"; \
+    git -C craft-fonts checkout -q FETCH_HEAD
+COPY web-fonts.txt scripts/add-fonts.sh /build/
+RUN /build/add-fonts.sh /build/web-fonts.txt /src/craft-fonts "$GOOGLE_FONTS_REF" > /build/web-fonts.env; \
+    echo "embedding: $(cat /build/web-fonts.env)"
+# A family the build doesn't embed is only a cargo warning upstream: fail on it here. The
+# build output (several GB in target/) is removed in the same step, out of the build cache.
+RUN cd figcraft/apps/figcraft-web; \
+    CRAFT_FONTS_DIR=/src/craft-fonts CRAFT_FONTS_REQUIRED=1 FIGCRAFT_WEB_FONTS="$(cat /build/web-fonts.env)" \
+      trunk build --release 2>&1 | tee /build/trunk.log; \
+    if grep -q "isn't embedded" /build/trunk.log; then grep "isn't embedded" /build/trunk.log >&2; exit 1; fi; \
+    ls -l /src/figcraft/dist/web/*.wasm; \
+    rm -rf /src/figcraft/target
 RUN set -eu; \
-    NAME="figcraft-web-${FIGCRAFT_VERSION}"; \
-    BASE="https://github.com/storytold/figcraft/releases/download/v${FIGCRAFT_VERSION}"; \
-    curl -fsSLO "$BASE/$NAME.zip"; \
-    curl -fsSLO "$BASE/SHA256SUMS.txt"; \
-    grep " $NAME.zip\$" SHA256SUMS.txt | sha256sum -c -; \
-    unzip -q "$NAME.zip"; \
-    mkdir -p /out; \
-    mv "$NAME" /out/web; \
-    rm -f /out/web/.htaccess /out/web/_headers; \
+    mkdir -p /out/web; \
+    cp -R /src/figcraft/dist/web/. /out/web/; \
+    for f in README.md LICENSE-MIT LICENSE-APACHE NOTICE; do cp "/src/figcraft/$f" /out/web/; done; \
+    for lic in /src/craft-fonts/fonts/*/OFL.txt; do cp "$lic" "/out/web/OFL-$(basename "$(dirname "$lic")").txt"; done; \
+    cp /build/web-fonts.env /out/web/EXTRA-FONTS.txt; \
     if [ -n "$FIGCRAFT_SERVER_URL" ]; then \
       case "$FIGCRAFT_SERVER_URL" in \
         ws://*|wss://*) ;; \
@@ -97,7 +139,7 @@ FROM gcr.io/distroless/cc-debian13:nonroot
 ARG FIGCRAFT_VERSION
 ARG PACKAGE_REVISION
 LABEL org.opencontainers.image.title="figcraft-server" \
-      org.opencontainers.image.description="FigCraft collaboration server and web app, packaged from upstream release files" \
+      org.opencontainers.image.description="FigCraft collaboration server and web app (with extra fonts), from upstream releases" \
       org.opencontainers.image.version="${FIGCRAFT_VERSION}-${PACKAGE_REVISION}" \
       org.opencontainers.image.licenses="MIT OR Apache-2.0"
 COPY --from=fetch /out/usr /usr
