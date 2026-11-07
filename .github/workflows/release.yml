@@ -5,13 +5,21 @@ name: Release
 # (upstream FigCraft) and ARG PACKAGE_REVISION (this packaging). The image is
 # tagged <version>-<revision>, which is never re-pushed (deploy pins it), plus
 # the floating <version>, <major.minor> and latest. Pushes that don't touch the
-# image (docs, README) are skipped. Run it by hand from the Actions tab to
+# image's files (README, CODEOWNERS, this workflow) are skipped. Run it by hand from the Actions tab to
 # rebuild the floating tags, e.g. for base image fixes; bump PACKAGE_REVISION
 # for a new immutable tag.
 on:
   push:
     branches: [main]
-    paths-ignore: ['docs/**', '**.md']
+    # Only the files the image is built from. A change to this workflow that
+    # should change the image goes with a PACKAGE_REVISION bump (a Dockerfile
+    # change), since <version>-<revision> is never re-pushed.
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - sws.toml
+      - web-fonts.txt
+      - scripts/**
   workflow_dispatch:
 
 concurrency:
