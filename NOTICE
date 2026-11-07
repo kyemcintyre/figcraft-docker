@@ -15,7 +15,8 @@ FigCraft (figcraft-server and the FigCraft web app)
   /srv/web/ (LICENSE-MIT, LICENSE-APACHE, NOTICE)
   The web app is compiled from FigCraft's source at the release tag, with one line of
   crates/text/build.rs changed at build time (scripts/patch-web-fonts.sh) so it embeds the
-  fonts in web-fonts.txt.
+  fonts in web-fonts.txt, and one import in crates/engine/src/events.rs changed
+  (scripts/patch-web-comments.sh, upstream's fix #1766) so posting a comment doesn't crash it.
 
 static-web-server
   https://github.com/static-web-server/static-web-server

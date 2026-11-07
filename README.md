@@ -72,6 +72,12 @@ that one condition in `crates/text/build.rs` when the source doesn't read the va
 fails if the line has changed, and the build checks each family's name is in the built `.wasm`,
 so a web app without the fonts is never published.
 
+[`scripts/patch-web-comments.sh`](scripts/patch-web-comments.sh) applies upstream's fix for
+[#1764](https://github.com/storytold/figcraft/issues/1764) (merged as #1766 after 0.16.0 was
+released): without it the browser app stops with "FigCraft stopped because of an internal error"
+whenever someone posts a comment. It does nothing on source that has the fix and fails if the line
+has changed. Drop both patches once a release includes what they do.
+
 `FIGCRAFT_SERVER_URL` in the Release workflow (`wss://figcraft.kyemcintyre.net/`) is written into
 `index.html` as the page's own server, so join codes and online sharing use it. Clients open a file
 in the browser, without installing FigCraft, at:
